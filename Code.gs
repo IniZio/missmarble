@@ -21,9 +21,9 @@ var fields = {
 function lineIf(o, fields, opt) {
   const line = (
     fields
-    .map(function(f) {
-      if (o[f] === 'TRUE' || o[f] === true) {
-        return 'Paid'
+    .map(function(f, i) {
+      if (opt && opt.overrides && opt.overrides[i]) {
+        return opt.overrides[i](o[f])
       }
       return o[f]
     })
@@ -57,7 +57,7 @@ function stylePattern(body, pattern, opt) {
 function order2Str(order) {
   if (!order) return '';
   return (
-    lineIf(order, ['paid'], {}) +
+    lineIf(order, ['paid'], {overrides: [function(val) {return ((val === true || val === 'TRUE') ? 'Paid' : 'NOT Paid')}]}) +
     lineIf(order, ['name', 'phone'], {prefix: '👨 '}) +
     lineIf(order, ['date', 'time'], {prefix: '🕐 '}) +
     lineIf(order, ['cake', 'size'], {prefix: '🎂 '}) +
@@ -98,6 +98,12 @@ function exportAllOrdersOfTmw() {
   exportOrders({date: date})
 }
 
+function exportCustomOrders() {
+  const [day, month] = Browser.inputBox('Orders Date', 'DD/MM', Browser.Buttons.OK_CANCEL).split('/').map(function(t) {return 0 + t});
+  
+  exportOrders({date: new Date(new Date().getYear(), month - 1, day)})
+}
+
 function exportOrders(filter) {
   var sheet = SpreadsheetApp.getActiveSheet();
   
@@ -109,7 +115,7 @@ function exportOrders(filter) {
   var data = (
     sheet.getDataRange().getValues()
       .filter(function(o) {return get(o, 'date') == month + '/' + day})
-//      .filter(function(o) {return filter.paid == get(o, 'paid')}) // paid
+//      .filter(function(o) {return (!filter.paidOnly) || filter.paid == get(o, 'paid')}) // paid
   );
   
   const orders = []
@@ -152,7 +158,8 @@ function exportOrders(filter) {
     ])
     body.appendPageBreak()
   })
-                 
+  
+  stylePattern(body, '(NOT )?Paid', {bold: true})
   stylePattern(body, '\d{8}', {bold: true})
 //  stylePattern(body, '蠟燭', {background: '#ff0000'})
 //  stylePattern(body, '蠟燭刀叉碟套裝', {background: '#ffffff'})
@@ -188,6 +195,7 @@ function onOpen() {
   var marbleMenuEntries = [
     {name: "Export " + month + '/' + (day - 1) + " orders (All)", functionName: "exportAllOrdersOfTmw"},
     {name: "Export " + month + '/' + day + " orders (Paid)", functionName: "exportPaidOrdersOfTmwTmw"},
+    {name: "Export Custom orders", functionName: "exportCustomOrders"},
   ];
   ss.addMenu("Marble", marbleMenuEntries);
 };
