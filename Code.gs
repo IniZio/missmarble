@@ -29,7 +29,7 @@ function lineIf(o, fields, opt) {
     })
     .join(' ')
   )
-  return (line.trim().length > 0) ? /*((opt && opt.prefix) || '') + */line + '\n' : ''
+  return (line.trim().length > 0) ? ((opt && opt.prefix) || '') + line.trim() + '\n' : ''
 }
 
 function stylePattern(body, pattern, opt) {
@@ -58,14 +58,14 @@ function order2Str(order) {
   if (!order) return '';
   return (
     lineIf(order, ['paid'], {overrides: [function(val) {return ((val === true || val === 'TRUE') ? 'Paid' : 'NOT Paid')}]}) +
-    lineIf(order, ['name', 'phone'], {prefix: '👨 '}) +
-    lineIf(order, ['date', 'time'], {prefix: '🕐 '}) +
-    lineIf(order, ['cake', 'size'], {prefix: '🎂 '}) +
-    lineIf(order, ['taste', 'letter'], {prefix: '      '}) +
-    lineIf(order, ['shape', 'color'], {prefix: '      '}) +
+    lineIf(order, ['name', 'phone']/*, {prefix: '👨 '}*/) +
+    lineIf(order, ['date', 'time']/*, {prefix: '🕐 '}*/) +
+    lineIf(order, ['cake', 'size']/*, {prefix: '🎂 '}*/) +
+    lineIf(order, ['taste', 'letter']/*, {prefix: '      '}*/) +
+    lineIf(order, ['shape', 'color']/*, {prefix: '      '}*/) +
     lineIf(order, ['sentence'], {prefix: '✍️️ '}) +
-    lineIf(order, ['order_from', 'social_name'], {prefix: '📲 '}) +
-    lineIf(order, ['delivery_method'], {prefix: '🚚 '}) +
+    lineIf(order, ['order_from', 'social_name']/*, {prefix: '📲 '}*/) +
+    lineIf(order, ['delivery_method']/*, {prefix: '🚚 '}*/) +
     lineIf(order, ['decorations']) +
     lineIf(order, ['remarks'])
   )
@@ -179,11 +179,9 @@ function exportOrders(filter) {
   pdfRef.setName(reportName)
   DriveApp.removeFile(pdfRef)
   
-  var ui = UiApp.createApplication().setTitle("Download");
-  var p = ui.createVerticalPanel();
-  ui.add(p);
-  p.add(ui.createAnchor("Download", pdfRef.getDownloadUrl().replace('&gd=true','')));
-  SpreadsheetApp.getActive().show(ui)
+  var html = HtmlService.createHtmlOutput('<a target=\"_blank\" href=\"' + pdfRef.getDownloadUrl().replace('&gd=true','') + '\">Download</a>')
+  SpreadsheetApp.getUi()
+      .showModalDialog(html, 'Download');
 }
 
 function onOpen() {
