@@ -114,6 +114,7 @@ function exportOrders(filter) {
   
   var data = (
     sheet.getDataRange().getValues()
+      .map(function(o, index) {o.id = index; return o})
       .filter(function(o) {return get(o, 'date') == month + '/' + day})
 //      .filter(function(o) {return (!filter.paidOnly) || filter.paid == get(o, 'paid')}) // paid
   );
@@ -137,6 +138,7 @@ function exportOrders(filter) {
       }
     })
     orders.push(order)
+    sheet.getRange('V' + (row.id + 1)).setValue(true)
   })
   
   var doc = DocumentApp.create(reportName)
@@ -194,6 +196,36 @@ function onOpen() {
     {name: "Export " + month + '/' + (day - 1) + " orders (All)", functionName: "exportAllOrdersOfTmw"},
     {name: "Export " + month + '/' + day + " orders (Paid)", functionName: "exportPaidOrdersOfTmwTmw"},
     {name: "Export Custom orders", functionName: "exportCustomOrders"},
+    {name: "Increment field", functionName: "autoIncrement"},
   ];
   ss.addMenu("Marble", marbleMenuEntries);
 };
+    
+function autoIncrement() {
+  var AUTOINC_COLUMN = 22; // After printed column
+  var HEADER_ROW_COUNT = 1;
+  
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var worksheet   = spreadsheet.getActiveSheet();
+  var rows        = worksheet.getDataRange().getNumRows();
+  var vals        = worksheet.getSheetValues(1, 1, rows+1, 2);
+    
+  Logger.clear()
+  Logger.log(rows)
+  Logger.log(vals.toString())
+    
+  worksheet.getRange(HEADER_ROW_COUNT, AUTOINC_COLUMN+1).setValue('Index')
+  
+  for (var row = HEADER_ROW_COUNT; row < vals.length; row++) {
+    try {
+      var id = vals[row][AUTOINC_COLUMN];
+//      Logger.log(id);Logger.log((""+id).length ===0);
+      if (id === undefined) {
+        // Here the columns & rows are 1-indexed
+        worksheet.getRange(row+1, AUTOINC_COLUMN+1).setValue(row + 1);
+      }
+    } catch(ex) {
+      // Keep calm and carry on
+    }
+  }
+}
