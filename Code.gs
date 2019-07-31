@@ -15,7 +15,8 @@ var fields = {
   social_name: 17,
   order_from: 18,
   delivery_method: 19,
-  remarks: 20
+  remarks: 20,
+  printed: 21
 };
 
 function lineIf(o, fields, opt) {
@@ -24,6 +25,9 @@ function lineIf(o, fields, opt) {
     .map(function(f, i) {
       if (opt && opt.overrides && opt.overrides[i]) {
         return opt.overrides[i](o[f])
+      }
+      if (o[f] instanceof Date) {
+        return (o[f].getMonth() + 1) + '/' + o[f].getDate();
       }
       return o[f]
     })
@@ -57,6 +61,7 @@ function stylePattern(body, pattern, opt) {
 function order2Str(order) {
   if (!order) return '';
   return (
+    ((order['printed'] === true || order['printed'] === 'TRUE') ? '' : 'NEW\n') +
     lineIf(order, ['paid'], {overrides: [function(val) {return ((val === true || val === 'TRUE') ? 'Paid' : 'NOT Paid')}]}) +
     lineIf(order, ['name', 'phone']/*, {prefix: '👨 '}*/) +
     lineIf(order, ['date', 'time']/*, {prefix: '🕐 '}*/) +
@@ -84,11 +89,11 @@ function get(row, col) {
   }, '')
 }
 
-function exportPaidOrdersOfTmwTmw() {
+function exportAllOrdersOfTmwTmw() {
   const date = new Date()
   date.setDate(date.getDate() + 2)
 
-  exportOrders({paidOnly: true, date: date})
+  exportOrders({date: date})
 }
 
 function exportAllOrdersOfTmw() {
@@ -98,8 +103,15 @@ function exportAllOrdersOfTmw() {
   exportOrders({date: date})
 }
 
+function exportUnprintedOrdersOfTmw() {
+  const date = new Date()
+  date.setDate(date.getDate() + 1)
+  
+  exportOrders({unprintedOnly: true, date: date})
+}
+
 function exportCustomOrders() {
-  const [day, month] = Browser.inputBox('Orders Date', 'DD/MM', Browser.Buttons.OK_CANCEL).split('/').map(function(t) {return 0 + t});
+  const [month, day] = Browser.inputBox('Orders Date', 'MM/DD', Browser.Buttons.OK_CANCEL).split('/').map(function(t) {return 0 + t});
   
   exportOrders({date: new Date(new Date().getYear(), month - 1, day)})
 }
@@ -109,19 +121,35 @@ function exportOrders(filter) {
   
   const date = filter.date
   
-  const [month, day] = [date.getMonth() + 1, date.getDate()] // day after tomorrow
+  const [month, day, year] = [date.getMonth() + 1, date.getDate(), date.getFullYear()]
   const reportName = 'Orders for ' + month + '/' + day + (filter.paidOnly ? ' (Paid)' : ' (All)')
   
   var data = (
     sheet.getDataRange().getValues()
       .map(function(o, index) {o.id = index; return o})
-      .filter(function(o) {return get(o, 'date') == month + '/' + day})
-//      .filter(function(o) {return (!filter.paidOnly) || filter.paid == get(o, 'paid')}) // paid
+      .filter(function(o) {
+        var odate = get(o, 'date') || ''
+        if (odate instanceof Date) {
+          return odate.getMonth() + 1 == month && odate.getDate() == day
+        }
+        return (odate.replace('\'', '').trim() == month + '/' + day) || (odate.replace('\'', '').trim() == month + '/' + day + '/' + year)
+      })
+      .filter(function(o) {return (!filter.unprintedOnly) || !get(o, 'printed') || get(o, 'printed') !== 'TRUE'})
+      .filter(function(o) {return (!filter.paidOnly) || 'TRUE' == get(o, 'paid')}) // paid
+      .filter(function onlyUnique(o, index, array) {
+        for (var a = 0; a < array.length; a++) {
+          var [lmonth, lday] = get(array[a], 'date').replace('\'', '').trim().split('/')
+          var [rmonth, rday] = get(o, 'date').replace('\'', '').trim().split('/')
+          if ((lmonth == rmonth) && (lday === rday) && (get(array[a], 'phone') == get(o, 'phone'))) {
+            return a === index
+          }
+        }
+      })
   );
   
   const orders = []
 
-  Logger.clear();
+  //Logger.clear();
   data.forEach(function(row) {
     const order = {}
     Object.keys(fields).forEach(function (col) {
@@ -138,7 +166,9 @@ function exportOrders(filter) {
       }
     })
     orders.push(order)
-    sheet.getRange('V' + (row.id + 1)).setValue(true)
+    if (order.paid) {
+      sheet.getRange('V' + (row.id + 1)).setValue(true)
+    }
   })
   
   var doc = DocumentApp.create(reportName)
@@ -188,18 +218,27 @@ function exportOrders(filter) {
 
 function onOpen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  const date = new Date()
-  date.setDate(date.getDate() + 2)
+  const tmw = new Date()
+  tmw.setDate(tmw.getDate() + 1)
+  var tmwTmw = new Date(new Date().setDate(new Date().getDate() + 2));
+//  const tmwTmw = new Date()
+//  tmwTmw.setDate(tmwTmw.getDate() + 2)
   
-  const [month, day] = [date.getMonth() + 1, date.getDate()] // day after tomorrow
+  const [month, day] = [tmw.getMonth() + 1, tmw.getDate()] // tomorrow
+  const [month1, day1] = [tmwTmw.getMonth() + 1, tmwTmw.getDate()] // tomorrow
   var marbleMenuEntries = [
-    {name: "Export " + month + '/' + (day - 1) + " orders (All)", functionName: "exportAllOrdersOfTmw"},
-    {name: "Export " + month + '/' + day + " orders (Paid)", functionName: "exportPaidOrdersOfTmwTmw"},
+    {name: "Export " + month + '/' + (day) + " orders (All)", functionName: "exportAllOrdersOfTmw"},
+    {name: "Export " + month + '/' + (day) + " orders (All) (Unprinted)", functionName: "exportUnprintedOrdersOfTmw"},
+    {name: "Export " + month1 + '/' + (day1) + " orders (All)", functionName: "exportAllOrdersOfTmwTmw"},
     {name: "Export Custom orders", functionName: "exportCustomOrders"},
     {name: "Increment field", functionName: "autoIncrement"},
   ];
   ss.addMenu("Marble", marbleMenuEntries);
 };
+    
+    function onEdit() {
+    autoIncrement();
+    }
     
 function autoIncrement() {
   var AUTOINC_COLUMN = 22; // After printed column
