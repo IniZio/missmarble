@@ -10,13 +10,14 @@ var fields = {
   size: 11,
   shape: [12, 13],
   color: 14,
-  sentence: 15,
-  decorations: 16,
+  sentence: 16,
+  decorations: 15,
   social_name: 17,
   order_from: 18,
   delivery_method: 19,
-  remarks: 20,
-  printed: 21
+  delivery_address: 20,
+  remarks: 21,
+  printed: 22
 };
 
 function lineIf(o, fields, opt) {
@@ -70,7 +71,7 @@ function order2Str(order) {
     lineIf(order, ['shape', 'color']/*, {prefix: '      '}*/) +
     lineIf(order, ['sentence'], {prefix: '✍️️ '}) +
     lineIf(order, ['order_from', 'social_name']/*, {prefix: '📲 '}*/) +
-    lineIf(order, ['delivery_method']/*, {prefix: '🚚 '}*/) +
+    lineIf(order, ['delivery_method', 'delivery_address']/*, {prefix: '🚚 '}*/) +
     lineIf(order, ['decorations']) +
     lineIf(order, ['remarks'])
   )
@@ -96,6 +97,13 @@ function exportAllOrdersOfTmwTmw() {
   exportOrders({date: date})
 }
 
+function exportUnprintedOrdersOfTmwTmw() {
+  const date = new Date()
+  date.setDate(date.getDate() + 2)
+
+  exportOrders({unprintedOnly: true, date: date})
+}
+
 function exportAllOrdersOfTmw() {
   const date = new Date()
   date.setDate(date.getDate() + 1)
@@ -117,6 +125,7 @@ function exportCustomOrders() {
 }
 
 function exportOrders(filter) {
+  filter.paidOnly = true // Print only paid orders for now
   var sheet = SpreadsheetApp.getActiveSheet();
   
   const date = filter.date
@@ -134,17 +143,8 @@ function exportOrders(filter) {
         }
         return (odate.replace('\'', '').trim() == month + '/' + day) || (odate.replace('\'', '').trim() == month + '/' + day + '/' + year)
       })
-      .filter(function(o) {return (!filter.unprintedOnly) || !get(o, 'printed') || get(o, 'printed') !== 'TRUE'})
-      .filter(function(o) {return (!filter.paidOnly) || 'TRUE' == get(o, 'paid')}) // paid
-      .filter(function onlyUnique(o, index, array) {
-        for (var a = 0; a < array.length; a++) {
-          var [lmonth, lday] = get(array[a], 'date').replace('\'', '').trim().split('/')
-          var [rmonth, rday] = get(o, 'date').replace('\'', '').trim().split('/')
-          if ((lmonth == rmonth) && (lday === rday) && (get(array[a], 'phone') == get(o, 'phone'))) {
-            return a === index
-          }
-        }
-      })
+      .filter(function(o) {return (!filter.unprintedOnly) || !(get(o, 'printed') === 'TRUE' || get(o, 'printed') === true)})
+      .filter(function(o) {return (!filter.paidOnly) || typeof get(o, 'paid') === 'string' ? 'TRUE' == get(o, 'paid') : get(o, 'paid') }) // paid
   );
   
   const orders = []
@@ -166,9 +166,9 @@ function exportOrders(filter) {
       }
     })
     orders.push(order)
-    if (order.paid) {
-      sheet.getRange('V' + (row.id + 1)).setValue(true)
-    }
+//    if (order.paid) {
+//      sheet.getRange('V' + (row.id + 1)).setValue(true)
+//    }
   })
   
   var doc = DocumentApp.create(reportName)
@@ -192,11 +192,7 @@ function exportOrders(filter) {
   })
   
   stylePattern(body, '(NOT )?Paid', {bold: true})
-  stylePattern(body, '\d{8}', {bold: true})
-//  stylePattern(body, '蠟燭', {background: '#ff0000'})
-//  stylePattern(body, '蠟燭刀叉碟套裝', {background: '#ffffff'})
-//  stylePattern(body, '.*(糕|餅)\ \d+.*', {bold: true})
-//  stylePattern(body, '生日插牌', {background: '#00ff00'})
+  stylePattern(body, '\d{8}', {bold: true}) // Phone number
   stylePattern(body, '寫名.*', {underline: true})
   
   doc.saveAndClose()
@@ -227,7 +223,7 @@ function onOpen() {
   const [month, day] = [tmw.getMonth() + 1, tmw.getDate()] // tomorrow
   const [month1, day1] = [tmwTmw.getMonth() + 1, tmwTmw.getDate()] // tomorrow
   var marbleMenuEntries = [
-    {name: "Export " + month + '/' + (day) + " orders (All)", functionName: "exportAllOrdersOfTmw"},
+//    {name: "Export " + month + '/' + (day) + " orders (All)", functionName: "exportAllOrdersOfTmw"},
     {name: "Export " + month + '/' + (day) + " orders (All) (Unprinted)", functionName: "exportUnprintedOrdersOfTmw"},
     {name: "Export " + month1 + '/' + (day1) + " orders (All)", functionName: "exportAllOrdersOfTmwTmw"},
     {name: "Export Custom orders", functionName: "exportCustomOrders"},
@@ -241,7 +237,7 @@ function onOpen() {
     }
     
 function autoIncrement() {
-  var AUTOINC_COLUMN = 22; // After printed column
+  var AUTOINC_COLUMN = 100; // Try to make sure not to overlap other columns
   var HEADER_ROW_COUNT = 1;
   
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
