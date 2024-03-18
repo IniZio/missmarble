@@ -3,6 +3,15 @@ import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { TRPCError } from '@trpc/server';
 import { type PrismaClient } from '@prisma/client';
 
+const orderAssetInput = z.object({
+  provider: z.string(),
+  bucket: z.string(),
+  objectKey: z.string(),
+  mimeType: z.string(),
+  url: z.string(),
+  name: z.string(),
+});
+
 export function findOrders(ctx: {prisma: PrismaClient}, input: {
   dateStart: Date,
   dateEnd: Date,
@@ -54,6 +63,7 @@ export function findOrders(ctx: {prisma: PrismaClient}, input: {
     },
     include: {
       currency: true,
+      assets: true,
       items: {
         include: {
           product: {
@@ -154,5 +164,43 @@ export const orderRouter = createTRPCRouter({
     const items = await findOrders(ctx, input);
 
     return items;
+  }),
+  assignAssets: publicProcedure.input(z.object({
+    orderId: z.string(),
+    assets: z.array(orderAssetInput),
+  })).mutation(async ({ input, ctx }) => {
+    const order = await ctx.prisma.order.findUnique({
+      where: {
+        id: input.orderId,
+      },
+      include: {
+        assets: true,
+      },
+    });
+
+    if (!order) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Order not found',
+      });
+    }
+
+    await ctx.prisma.order.update({
+      where: {
+        id: input.orderId,
+      },
+      data: {
+        assets: {
+          create: input.assets.map((asset) => ({
+            provider: asset.provider,
+            bucket: asset.bucket,
+            name: asset.name,
+            objectKey: asset.objectKey,
+            mimeType: asset.mimeType,
+            url: asset.url,
+          })),
+        },
+      },
+    });
   }),
 });

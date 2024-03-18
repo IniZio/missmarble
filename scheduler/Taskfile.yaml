@@ -13,3 +13,9 @@ tasks:
 
   dev:
     pnpm dev
+
+  dep:
+    deps:
+      - copy-prisma
+    cmds:
+      - pnpm i

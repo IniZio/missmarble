@@ -6,6 +6,7 @@ export const apiAssetSchema = z.object({
   objectKey: z.string(),
   mimeType: z.string(),
   url: z.string(),
+  name: z.string().nullish(),
 })
 
 export const assetSchema = apiAssetSchema;

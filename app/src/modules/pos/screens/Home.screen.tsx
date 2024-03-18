@@ -27,7 +27,7 @@ const HomeScreen: React.FC = () => {
     to: dayjs(new Date()).endOf('day').toDate(),
   }));
   const [keyword, setKeyword] = useState('');
-  const { data: orders, isLoading } = useGetOrders({
+  const { data: orders, isLoading, refetch: refetchOrders } = useGetOrders({
     dateStart: dayjs(dateRange?.from ?? dateRange?.to ?? new Date()).startOf('day').toDate(),
     dateEnd: dayjs(dateRange?.to ?? dateRange?.from ?? new Date()).endOf('day').toDate(),
     keyword
@@ -54,7 +54,8 @@ const HomeScreen: React.FC = () => {
         sortBy: { column: "updated_at", order: "desc" },
       })
       .then(({ data }) => data && setOrderAssets(data.map((i) => i.name)))
-  }, [])
+      .then(() => refetchOrders())
+  }, [refetchOrders])
   const downloadRelatedOrderAssets = useCallback(() => {
     relatedOrderAssets?.forEach((assetName) => {
       // Add a delay to prevent the browser from blocking the download

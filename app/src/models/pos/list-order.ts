@@ -72,6 +72,8 @@ export const listOrderSchema = z.object({
   discountTotal: z.number(),
   total: z.number(),
   shippingTotal: z.number(),
+
+  assets: z.array(assetSchema),
 })
 
 export type ListOrder = z.infer<typeof listOrderSchema>

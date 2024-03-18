@@ -36,4 +36,5 @@ tasks:
 
   dep:
     cmds:
-      - cd app && pnpm i
+      - task -d app dep
+      - task -d scheduler dep

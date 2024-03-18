@@ -33,12 +33,14 @@ model Asset {
   provider  String
   bucket    String
   objectKey String
+  name      String?
   mimeType  String
   url       String
 
   products               Product[]
   cartProductFieldValues CartProductFieldValue[]
   inventoryItems         InventoryItem[]
+  orders                 Order[]
 }
 
 model Product {
@@ -361,6 +363,8 @@ model Order {
 
   paymentStatus     String @default("NOT_PAID")
   fulfillmentStatus String @default("NOT_FULFILLED")
+
+  assets Asset[]
 
   @@index([externalData], name: "externalData")
   @@index([paymentStatus], name: "paymentStatus")

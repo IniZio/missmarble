@@ -11,6 +11,8 @@ asdf install
 
 task dep
 task secret
+
+# You will need to fill in supbase keys in .env first, probably get from dev
 task db:reset
 ```
 

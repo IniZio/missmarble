@@ -27,6 +27,13 @@ import { OrderFulfillmentStatus, type ListOrder, OrderPaymentStatus } from '@/mo
 import { Textarea } from '@/components/ui/textarea'
 import getConfig from 'next/config'
 import { Badge } from '@/components/ui/badge'
+import { useAssignOrderAssets } from '../actions/assignOrderAssets'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 export interface OrderProps {
   order: ListOrder
@@ -79,6 +86,7 @@ function OrderCard({ order, orderAssets, onUpdate }: OrderProps) {
   const lines = useMemo(() => order2Lines(order), [order])
   const [editMode, setEditMode] = useState(false)
   const toggleEditMode = useCallback(() => setEditMode(!editMode), [editMode])
+  const [assignOrderAssets] = useAssignOrderAssets();
 
   const whatsappHref = useMemo(() => {
     const encodedLines = encodeURIComponent(lines.map(line => line.join(' ')).join("\n"))
@@ -111,6 +119,7 @@ function OrderCard({ order, orderAssets, onUpdate }: OrderProps) {
   const handleUploadFile = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
       const uploadedfile: File = event.target.files![0]!
+      console.log(uploadedfile)
       if (!order.createdAt?.toISOString()) {
         return Promise.resolve()
       }
@@ -149,22 +158,36 @@ function OrderCard({ order, orderAssets, onUpdate }: OrderProps) {
         : uploadedfile
 
       setIsUploading(true)
+      const objectKey = `${order.createdAt?.toISOString()}-${new Date().toISOString()}.${uploadedfile.name
+        .split(".")
+        .pop()}`;
       return getSupabase().storage
         .from("order-assets")
         .upload(
-          `${order.createdAt?.toISOString()}-${new Date().toISOString()}.${uploadedfile.name
-            .split(".")
-            .pop()}`,
+          objectKey,
           resizedFile,
           {
             cacheControl: "3600",
             upsert: true,
           }
         )
+        .then(() => {
+          return assignOrderAssets({
+            orderId: order.id,
+            assets: [{
+              objectKey,
+              name: uploadedfile.name,
+              bucket: "order-assets",
+              provider: "supabase",
+              url: `${publicRuntimeConfig.ORDER_ASSETS_CDN_URL}/order-assets/${objectKey}`,
+              mimeType: uploadedfile.type,
+            }]
+          })
+        })
         .then(onUpdate)
         .finally(() => setIsUploading(false))
     },
-    [onUpdate, order.createdAt]
+    [assignOrderAssets, onUpdate, order.createdAt, order.id]
   )
   const makeHandleDeleteFile = useCallback(
     (imageName: string) => () => {
@@ -206,22 +229,31 @@ function OrderCard({ order, orderAssets, onUpdate }: OrderProps) {
                 rel="noreferrer"
                 className="relative flex h-[40px] items-center justify-center overflow-hidden"
               >
-                {isImage(assetName) || !assetName.includes(".") ? (
-                  <img
-                    src={`${publicRuntimeConfig.ORDER_ASSETS_CDN_URL}/order-assets/${assetName}`}
-                    alt=""
-                    width="40"
-                    height="40"
-                    onError={(e) =>
-                      (e.currentTarget.src = e.currentTarget.src.replace(
-                        /\?(.*)$/,
-                        new Date().toISOString()
-                      ))
-                    }
-                  />
-                ) : (
-                  <FileIcon width={25} height={25} />
-                )}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      {isImage(assetName) || !assetName.includes(".") ? (
+                        <img
+                          src={`${publicRuntimeConfig.ORDER_ASSETS_CDN_URL}/order-assets/${assetName}`}
+                          alt=""
+                          width="40"
+                          height="40"
+                          onError={(e) =>
+                            (e.currentTarget.src = e.currentTarget.src.replace(
+                              /\?(.*)$/,
+                              new Date().toISOString()
+                            ))
+                          }
+                        />
+                      ) : (
+                        <FileIcon width={25} height={25} />
+                      )}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{order.assets.find(asset => asset.objectKey === assetName)?.name ?? assetName}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </a>
               {editMode && (
                 <XIcon
